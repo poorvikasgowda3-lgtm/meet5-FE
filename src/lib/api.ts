@@ -31,7 +31,6 @@ import axios from 'axios';
 
 const api = axios.create({
   baseURL: getApiBase(),
-  timeout: 10000,
 });
 
 // Add a request interceptor to attach the JWT token

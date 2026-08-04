@@ -52,10 +52,20 @@ export const register = async (req, res) => {
 // @desc    Auth user & get token (Auto register if new)
 // @route   POST /api/auth/login
 export const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
+  const timestamp = new Date().toISOString();
+  console.log(`\n==================================================`);
+  console.log(`[EXPRESS BACKEND ${timestamp}] POST /api/auth/login received`);
 
-    if (!email || !password) {
+  try {
+    const { email, password } = req.body || {};
+    console.log(`[EXPRESS BACKEND] Payload -> Email: "${email}", Password length: ${password ? password.length : 0}`);
+
+    if (!email || !email.trim()) {
+      console.warn(`[EXPRESS BACKEND] Missing email in request`);
+      return res.status(400).json({ message: 'Please provide email and password' });
+    }
+    if (!password) {
+      console.warn(`[EXPRESS BACKEND] Missing password in request`);
       return res.status(400).json({ message: 'Please provide email and password' });
     }
 
@@ -63,14 +73,47 @@ export const login = async (req, res) => {
 
     // 1. Try MongoDB if connected
     if (mongoose.connection.readyState === 1) {
-      let user = await User.findOne({ email: normalizedEmail });
+      console.log(`[EXPRESS BACKEND] Querying MongoDB for: ${normalizedEmail}`);
+      try {
+        let user = await User.findOne({ email: normalizedEmail });
 
-      if (user) {
-        const isMatch = await user.matchPassword(password);
-        if (!isMatch) {
-          return res.status(401).json({ message: 'Invalid email or password' });
+        if (user) {
+          console.log(`[EXPRESS BACKEND] Found user in MongoDB. Verifying password...`);
+          const isMatch = await user.matchPassword(password);
+          if (!isMatch) {
+            console.warn(`[EXPRESS BACKEND] Password mismatch for: ${normalizedEmail}`);
+            return res.status(401).json({ message: 'Invalid email or password' });
+          }
+          console.log(`[EXPRESS BACKEND] Login SUCCESS for MongoDB user: ${normalizedEmail}`);
+          const token = generateToken(user._id);
+          console.log(`[EXPRESS BACKEND] Generated JWT token. Returning 200 OK.`);
+          console.log(`==================================================\n`);
+          return res.json({
+            user: {
+              _id: user._id,
+              id: user._id,
+              user_id: user._id,
+              name: user.name,
+              display_name: user.name,
+              email: user.email,
+              username: user.email.split('@')[0],
+            },
+            token,
+          });
         }
-        return res.json({
+
+        console.log(`[EXPRESS BACKEND] User not in MongoDB. Creating new MongoDB user...`);
+        const defaultName = normalizedEmail.split('@')[0];
+        user = await User.create({
+          name: defaultName,
+          email: normalizedEmail,
+          password,
+        });
+
+        console.log(`[EXPRESS BACKEND] User created in MongoDB. Returning 201 Created.`);
+        const token = generateToken(user._id);
+        console.log(`==================================================\n`);
+        return res.status(201).json({
           user: {
             _id: user._id,
             id: user._id,
@@ -80,44 +123,37 @@ export const login = async (req, res) => {
             email: user.email,
             username: user.email.split('@')[0],
           },
-          token: generateToken(user._id),
+          token,
         });
+      } catch (mongoErr) {
+        console.warn(`[EXPRESS BACKEND] MongoDB query error (${mongoErr.message}). Switching to persistent DB engine...`);
       }
-
-      // Auto register if user does not exist
-      const defaultName = normalizedEmail.split('@')[0];
-      user = await User.create({
-        name: defaultName,
-        email: normalizedEmail,
-        password,
-      });
-
-      return res.status(201).json({
-        user: {
-          _id: user._id,
-          id: user._id,
-          user_id: user._id,
-          name: user.name,
-          display_name: user.name,
-          email: user.email,
-          username: user.email.split('@')[0],
-        },
-        token: generateToken(user._id),
-      });
     }
 
-    // 2. Fallback to file-based persistent DB engine
+    // 2. Persistent file-database engine
+    console.log(`[EXPRESS BACKEND] Querying persistent file-database for: ${normalizedEmail}`);
     let dbUser = findUserByEmail(normalizedEmail);
+    let isNewUser = false;
+
     if (dbUser) {
+      console.log(`[EXPRESS BACKEND] User found in persistent database (ID: ${dbUser.id}). Verifying password...`);
       if (!verifyPassword(password, dbUser)) {
+        console.warn(`[EXPRESS BACKEND] Password mismatch for persistent user: ${normalizedEmail}`);
         return res.status(401).json({ message: 'Invalid email or password' });
       }
+      console.log(`[EXPRESS BACKEND] Password verification SUCCESS for: ${normalizedEmail}`);
     } else {
+      console.log(`[EXPRESS BACKEND] User not found. Creating new user in persistent database...`);
       dbUser = createUser(normalizedEmail, password);
+      isNewUser = true;
+      console.log(`[EXPRESS BACKEND] User created in DB (ID: ${dbUser.id}).`);
     }
 
     const token = generateJwtToken(dbUser);
-    return res.json({
+    console.log(`[EXPRESS BACKEND] Token generated. Returning HTTP ${isNewUser ? 201 : 200} response.`);
+    console.log(`==================================================\n`);
+
+    return res.status(isNewUser ? 201 : 200).json({
       user: {
         _id: dbUser.id,
         id: dbUser.id,
@@ -130,6 +166,8 @@ export const login = async (req, res) => {
       token,
     });
   } catch (error) {
+    console.error(`[EXPRESS BACKEND ERROR] Login error:`, error);
+    console.log(`==================================================\n`);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

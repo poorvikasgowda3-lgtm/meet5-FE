@@ -46,6 +46,8 @@ export function setStoredUser(user: User | null): void {
 
 export async function authenticateUser(email: string, password: string): Promise<User> {
   const normalizedEmail = email.trim().toLowerCase();
+  console.log(`[FRONTEND] Sending login request for email: "${normalizedEmail}"`);
+  console.log(`[FRONTEND] API Target URL: ${api.defaults.baseURL}/auth/login`);
 
   try {
     const response = await api.post('/auth/login', {
@@ -53,19 +55,23 @@ export async function authenticateUser(email: string, password: string): Promise
       password,
     });
 
+    console.log(`[FRONTEND] Received successful API response status ${response.status}:`, response.data);
     const { user, token } = response.data;
     if (token) {
+      console.log(`[FRONTEND] Saving JWT token to localStorage (Token length: ${token.length})`);
       localStorage.setItem(TOKEN_STORAGE_KEY, token);
     }
 
     const normalized = normalizeUser(user);
+    console.log(`[FRONTEND] Normalized user object:`, normalized);
     setStoredUser(normalized);
     return normalized;
   } catch (error: any) {
+    console.error(`[FRONTEND ERROR] Login request failed:`, error);
     if (error.response && error.response.data && error.response.data.message) {
       throw new Error(error.response.data.message);
     }
-    throw new Error(error.message || "Failed to authenticate. Please try again.");
+    throw new Error(error.message || "Failed to authenticate. Please check your connection.");
   }
 }
 

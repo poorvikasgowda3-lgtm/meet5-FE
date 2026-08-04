@@ -32,13 +32,18 @@ export default function LoginPage() {
     }
 
     setLoading(true);
+    console.log(`[LOGIN PAGE] Submitting login form for email: "${email}"`);
 
     try {
       const user = await authenticateUser(email, password);
+      console.log(`[LOGIN PAGE] Login succeeded for: ${user.email}. Navigating to /feed...`);
       login(user);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+      const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
+      console.error(`[LOGIN PAGE ERROR] Authentication failed:`, errorMessage);
+      setError(errorMessage);
     } finally {
+      console.log(`[LOGIN PAGE] Clearing loading state (setLoading(false))`);
       setLoading(false);
     }
   };
