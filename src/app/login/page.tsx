@@ -22,12 +22,12 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
 
-    if (!email.trim() || !email.includes("@")) {
-      setError("Please enter a valid email address");
+    if (!email.trim()) {
+      setError("Please enter an email address");
       return;
     }
-    if (!password || password.length < 6) {
-      setError("Password must be at least 6 characters");
+    if (!password) {
+      setError("Please enter a password");
       return;
     }
 
@@ -132,7 +132,6 @@ export default function LoginPage() {
                       onChange={(e) => setPassword(e.target.value)}
                       disabled={loading}
                       required
-                      minLength={6}
                       className="pl-10 pr-10 bg-slate-800/40 border-slate-700 focus-visible:ring-orange-500 focus-visible:border-orange-500"
                     />
                     <button
@@ -144,7 +143,6 @@ export default function LoginPage() {
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
-                  <p className="text-[10px] text-slate-500">Minimum 6 characters</p>
                 </div>
               </form>
             </CardContent>

@@ -24,13 +24,14 @@ export function getApiBase(): string {
     return configuredBase.endsWith("/api") ? configuredBase : `${configuredBase}/api`;
   }
 
-  return process.env.NODE_ENV === "development" ? "http://127.0.0.1:5000/api" : "/api";
+  return "/api";
 }
 
 import axios from 'axios';
 
 const api = axios.create({
   baseURL: getApiBase(),
+  timeout: 10000,
 });
 
 // Add a request interceptor to attach the JWT token

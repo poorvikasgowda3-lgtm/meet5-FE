@@ -54,16 +54,18 @@ export async function authenticateUser(email: string, password: string): Promise
     });
 
     const { user, token } = response.data;
+    if (token) {
+      localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    }
 
-    // Save JWT token in localStorage
-    localStorage.setItem(TOKEN_STORAGE_KEY, token);
-
-    return normalizeUser(user);
+    const normalized = normalizeUser(user);
+    setStoredUser(normalized);
+    return normalized;
   } catch (error: any) {
-    if (error.response && error.response.data.message) {
+    if (error.response && error.response.data && error.response.data.message) {
       throw new Error(error.response.data.message);
     }
-    throw new Error("Invalid email or password");
+    throw new Error(error.message || "Failed to authenticate. Please try again.");
   }
 }
 
@@ -78,15 +80,35 @@ export async function registerUser(name: string, email: string, password: string
     });
 
     const { user, token } = response.data;
+    if (token) {
+      localStorage.setItem(TOKEN_STORAGE_KEY, token);
+    }
 
-    // Save JWT token in localStorage
-    localStorage.setItem(TOKEN_STORAGE_KEY, token);
-
-    return normalizeUser(user);
+    const normalized = normalizeUser(user);
+    setStoredUser(normalized);
+    return normalized;
   } catch (error: any) {
-    if (error.response && error.response.data.message) {
+    if (error.response && error.response.data && error.response.data.message) {
       throw new Error(error.response.data.message);
     }
-    throw new Error("Registration failed");
+    throw new Error(error.message || "Failed to register account.");
+  }
+}
+
+export async function verifyCurrentSession(): Promise<User | null> {
+  if (typeof window === "undefined") return null;
+  const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+  if (!token) return null;
+
+  try {
+    const response = await api.get('/auth/me');
+    if (response.data && response.data.user) {
+      const user = normalizeUser(response.data.user);
+      setStoredUser(user);
+      return user;
+    }
+    return getStoredUser();
+  } catch {
+    return getStoredUser();
   }
 }

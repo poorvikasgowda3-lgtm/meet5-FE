@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import type { User } from "./types";
-import { getStoredUser, setStoredUser } from "./auth";
+import { getStoredUser, setStoredUser, verifyCurrentSession } from "./auth";
 import { useRouter, usePathname } from "next/navigation";
 
 interface AuthContextType {
@@ -21,9 +21,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    const stored = getStoredUser();
-    setUser(stored);
-    setLoading(false);
+    async function initAuth() {
+      try {
+        const activeUser = await verifyCurrentSession();
+        setUser(activeUser);
+      } catch {
+        setUser(getStoredUser());
+      } finally {
+        setLoading(false);
+      }
+    }
+    initAuth();
   }, []);
 
   useEffect(() => {

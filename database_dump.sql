@@ -35,7 +35,8 @@ values
   ('john_dev', 'John Developer', null),
   ('emma_design', 'Emma Designer', null),
   ('alex_tech', 'Alex Thompson', null),
-  ('mike_creator', 'Mike Creator', null);
+  ('mike_creator', 'Mike Creator', null),
+  ('appi20209', 'Appi', null);
 
 insert into articles (author_id, title, summary, content, status, published_at)
 values

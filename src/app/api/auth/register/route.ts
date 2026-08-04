@@ -1,32 +1,57 @@
 import { NextResponse } from "next/server";
+import {
+  findUserByEmail,
+  createUser,
+  generateJwtToken,
+} from "@/lib/server-db";
 
 export async function POST(request: Request) {
-  const backendUrl = process.env.NEXT_PUBLIC_API_URL;
+  try {
+    const body = await request.json();
+    const { name, email, password } = body || {};
 
-  if (!backendUrl) {
+    if (!email || !email.trim()) {
+      return NextResponse.json({ message: "Email is required" }, { status: 400 });
+    }
+    if (!password) {
+      return NextResponse.json({ message: "Password is required" }, { status: 400 });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    let dbUser = findUserByEmail(normalizedEmail);
+
+    if (dbUser) {
+      return NextResponse.json(
+        { message: "User already exists with this email" },
+        { status: 400 }
+      );
+    }
+
+    dbUser = createUser(normalizedEmail, password, name);
+    const token = generateJwtToken(dbUser);
+
+    const userPayload = {
+      _id: dbUser.id,
+      id: dbUser.id,
+      user_id: dbUser.user_id,
+      email: dbUser.email,
+      name: dbUser.name,
+      display_name: dbUser.display_name,
+      username: dbUser.username,
+    };
+
     return NextResponse.json(
-      { error: "Backend URL is not configured. Set NEXT_PUBLIC_API_URL." },
+      {
+        message: "Registration successful",
+        user: userPayload,
+        token,
+      },
+      { status: 201 }
+    );
+  } catch (error: any) {
+    return NextResponse.json(
+      { message: error.message || "Registration failed" },
       { status: 500 }
     );
   }
-
-  const normalizedBase = backendUrl.replace(/\/$/, "");
-  const targetUrl = `${normalizedBase.endsWith("/api") ? normalizedBase : `${normalizedBase}/api`}/auth/register`;
-  const body = await request.text();
-
-  const response = await fetch(targetUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": request.headers.get("content-type") || "application/json",
-    },
-    body,
-  });
-
-  const responseBody = await response.text();
-  const contentType = response.headers.get("content-type") || "application/json";
-
-  return new Response(responseBody, {
-    status: response.status,
-    headers: { "Content-Type": contentType },
-  });
 }

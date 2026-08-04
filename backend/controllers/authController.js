@@ -1,5 +1,7 @@
 import User from '../models/User.js';
 import jwt from 'jsonwebtoken';
+import mongoose from 'mongoose';
+import { findUserByEmail, verifyPassword, createUser, generateJwtToken } from '../../src/lib/server-db.js';
 
 // Generate JWT
 const generateToken = (id) => {
@@ -53,41 +55,80 @@ export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    let user = await User.findOne({ email });
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Please provide email and password' });
+    }
 
-    // If user exists, authenticate
-    if (user) {
-      if (await user.matchPassword(password)) {
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // 1. Try MongoDB if connected
+    if (mongoose.connection.readyState === 1) {
+      let user = await User.findOne({ email: normalizedEmail });
+
+      if (user) {
+        const isMatch = await user.matchPassword(password);
+        if (!isMatch) {
+          return res.status(401).json({ message: 'Invalid email or password' });
+        }
         return res.json({
           user: {
             _id: user._id,
+            id: user._id,
+            user_id: user._id,
             name: user.name,
+            display_name: user.name,
             email: user.email,
+            username: user.email.split('@')[0],
           },
           token: generateToken(user._id),
         });
-      } else {
-        return res.status(401).json({ message: 'Invalid password' });
       }
-    } 
-    
-    // If user does not exist, auto-register
-    const defaultName = email.split('@')[0];
-    user = await User.create({
-      name: defaultName,
-      email,
-      password,
-    });
 
-    res.status(201).json({
+      // Auto register if user does not exist
+      const defaultName = normalizedEmail.split('@')[0];
+      user = await User.create({
+        name: defaultName,
+        email: normalizedEmail,
+        password,
+      });
+
+      return res.status(201).json({
+        user: {
+          _id: user._id,
+          id: user._id,
+          user_id: user._id,
+          name: user.name,
+          display_name: user.name,
+          email: user.email,
+          username: user.email.split('@')[0],
+        },
+        token: generateToken(user._id),
+      });
+    }
+
+    // 2. Fallback to file-based persistent DB engine
+    let dbUser = findUserByEmail(normalizedEmail);
+    if (dbUser) {
+      if (!verifyPassword(password, dbUser)) {
+        return res.status(401).json({ message: 'Invalid email or password' });
+      }
+    } else {
+      dbUser = createUser(normalizedEmail, password);
+    }
+
+    const token = generateJwtToken(dbUser);
+    return res.json({
       user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
+        _id: dbUser.id,
+        id: dbUser.id,
+        user_id: dbUser.user_id,
+        name: dbUser.name,
+        display_name: dbUser.display_name,
+        email: dbUser.email,
+        username: dbUser.username,
       },
-      token: generateToken(user._id),
+      token,
     });
-
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
